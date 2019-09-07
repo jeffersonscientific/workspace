@@ -150,7 +150,7 @@ def copy_U_from_QBO_layer(layer_index=0, fpathname_src='', fpath_dest='', fname_
         if fname_dest is None or fname_dest=='':
             fname_dest = 'U_{}_QBO_k{}.nc'.format(fin.variables['lev_p'][layer_index], layer_index)
         fpathname_dest = os.path.join(fpath_dest, fname_dest)
-        u_type = fin.variables['U'].datatype
+        u_type = fin.variables['U'].typecode()
         #
         os.system('rm {}'.format(fpathname_dest))
         if verbose:
@@ -344,7 +344,7 @@ def copy_U_from_QBO_layer_iosafer(layer_index=0, fpathname_src='', fpath_dest=''
             print('** DEBUG: open output file...')
             n_batches = int(numpy.ceil(n_time/batch_size))
         n_time, n_pev, n_lat, n_lon = numpy.shape(fin.variables['U'])
-        u_type = fin.variables['U'].datatype
+        u_type = fin.variables['U'].typecode()
     #
         with contextlib.closing(Nio.open_file(fpathname_dest, 'c')) as fout:
             #
