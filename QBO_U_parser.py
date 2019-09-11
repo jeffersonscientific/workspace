@@ -116,7 +116,8 @@ def copy_U_from_QBO_layer(layer_index=0, fpathname_src='', fpath_dest='', fname_
         n_cpu = min(n_cpu, len(layer_index))
         #
         if verbose:
-            print('*** instantiating Pool() with {} workers'.format(n_cpu))
+            #print('*** instantiating Pool() with {} workers'.format(n_cpu))
+            print('*** running for indices={} '.format(layer_index))
         #
         P = mpp.Pool(n_cpu)
         #
@@ -135,7 +136,11 @@ def copy_U_from_QBO_layer(layer_index=0, fpathname_src='', fpath_dest='', fname_
         P.join()
         #
         # for now, hack out of this by just making this a serial loop:
-        jobs = [copy_U_from_QBO_layer(k, fpathname_src, fpath_dest, None, batch_size, kt_0, kt_max, verbose, 1, n_tries) for k in layer_index]
+        # ... and to keep the memory footprint down, if we're going serial, just block this out:
+        #jobs = [copy_U_from_QBO_layer(k, fpathname_src, fpath_dest, None, batch_size, kt_0, kt_max, verbose, 1, n_tries) for k in layer_index]
+        jobs = []
+        for k in layer_index:
+            jobs += [copy_U_from_QBO_layer(k, fpathname_src, fpath_dest, None, batch_size, kt_0, kt_max, verbose, 1, n_tries)]
         #
         return jobs
     #
@@ -293,6 +298,8 @@ def copy_U_from_QBO_layer(layer_index=0, fpathname_src='', fpath_dest='', fname_
             if verbose:
                 print('** DEBUG: QBO complete. Elapsed time: {}'.format(time.time()-t0))
         #
+        if verbose:
+            print('*** layer [{}] complete; elapsed time: {}'.format(layer_index, time.time()-t0))
     return fpathname_dest
 #
 # a (possibly) IO safer way to do this...
@@ -300,20 +307,20 @@ def copy_U_from_QBO_layer_iosafer(layer_index=0, fpathname_src='', fpath_dest=''
 								  kt_0=0, kt_max=None, verbose=0, n_cpu=None, n_tries=10):
     #
     '''
-        #
-        # keep it simple for now. This script will basically do one job with only a few options.
-        # Variables:
-        # @layer_index: layer index to extract
-        # @fnamename_src: full path abnd filename of source data file
-        # @fpath_dest: output data file path. just the path; we want to allow for dynamic filename construction.
-        # @fname_dest: output data filename
-        # @fpathnamename_template: Full path an dname of a template file -- an empty (or otherwise intialized)
-        #. file with the right dimensinos, etc.
-        #.  writing the empty file seems to take a long, long time, so this is probably a reasonable way to save time.
-        # @kt_0, @kt_max: start and stop time indices. They will default to 0, and {max}
-        # @verbose: debugging level. 0 is None. 1 or "True" is one, and we might add more levels.
-        # @n_tries: numer of try/excepts to allow, when try/except is implemented in loops.
-        #
+    #
+    # keep it simple for now. This script will basically do one job with only a few options.
+    # Variables:
+    # @layer_index: layer index to extract
+    # @fnamename_src: full path abnd filename of source data file
+    # @fpath_dest: output data file path. just the path; we want to allow for dynamic filename construction.
+    # @fname_dest: output data filename
+    # @fpathnamename_template: Full path an dname of a template file -- an empty (or otherwise intialized)
+    #. file with the right dimensinos, etc.
+    #.  writing the empty file seems to take a long, long time, so this is probably a reasonable way to save time.
+    # @kt_0, @kt_max: start and stop time indices. They will default to 0, and {max}
+    # @verbose: debugging level. 0 is None. 1 or "True" is one, and we might add more levels.
+    # @n_tries: numer of try/excepts to allow, when try/except is implemented in loops.
+    #
         '''
     #
     # pseudo-recursive multi-threading:
@@ -322,6 +329,9 @@ def copy_U_from_QBO_layer_iosafer(layer_index=0, fpathname_src='', fpath_dest=''
     #  and an appropriate n_cpu, set up a Pool() and push jobs back through this function (quasi-recursively) with
     # type(layer_index)=int and n_cpu=1
     #
+    # note: only use this "or" syntax if we want to default to zero (False), since it uses a "None-like" definition
+    verbose = int(0 or verbose)
+    batch_size = int(batch_size or 1)
     if verbose:
         print('** DEBUG[{}:{}] running IO-safe(r) version.'.format(os.getpid(), os.getppid()))
     if n_tries is None:
@@ -337,18 +347,19 @@ def copy_U_from_QBO_layer_iosafer(layer_index=0, fpathname_src='', fpath_dest=''
         # ... except it looks like we cannot MPP this at all, at least not with the Nio object; it appears that it does not
         #  support multi-threaded access at all. Can we use the netcdf libraries? Does Nio have an open_parallel() (or something)
         #  function?
-        if n_cpu is None:
-            n_cpu = mpp.cpu_count()
-        layer_index = [int(x) for x in layer_index]
-        #
+        n_cpu = (n_cpu or mpp.cpu_count())
         # we only need one core per layer:
         n_cpu = min(n_cpu, len(layer_index))
+        #if n_cpu is None:
+        #    n_cpu = mpp.cpu_count()
+        layer_index = [int(x) for x in layer_index]
         #
         if verbose:
-            print('*** instantiating Pool() with {} workers'.format(n_cpu))
-            print('*** layer_index: {}'.format(layer_index))
+            #print('*** instantiating Pool() with {} workers'.format(n_cpu))
+            print('*** Processing layer indices: {}'.format(layer_index))
+            #print('*** layer_index: {}'.format(layer_index))
         #
-        P = mpp.Pool(n_cpu)
+        #P = mpp.Pool(n_cpu)
         #
         # we don't need to return anything, so we could probably use a map(), map_async(), or imap_{unordered?"). In the end, I think
         #  these are shorthands, something like map_async().get() is a wrapper around [apply_async()...]; [r.get() ]
@@ -369,7 +380,12 @@ def copy_U_from_QBO_layer_iosafer(layer_index=0, fpathname_src='', fpath_dest=''
         #
         # for now, hack out of this by just making this a serial loop:
         # TODO: might as well update this to use kwd calling, fpathname_src=fpathname_srce, etc.
-        jobs = [copy_U_from_QBO_layer_iosafer(k, fpathname_src, fpath_dest, None, batch_size, kt_0, kt_max, verbose, 1) for k in layer_index]
+        # NOTE: this list comprehension syntax n*x memory, and since we don't retain the variables or do anything with them, it makes sense to
+        #  block out a loop:
+        #jobs = [copy_U_from_QBO_layer_iosafer(k, fpathname_src, fpath_dest, None, batch_size, kt_0, kt_max, verbose, 1) for k in layer_index]
+        jobs = []
+        for k in layer_index:
+            jobs += [copy_U_from_QBO_layer_iosafer(k, fpathname_src, fpath_dest, None, batch_size, kt_0, kt_max, verbose, 1)]
         #
         return jobs
     #
@@ -399,13 +415,24 @@ def copy_U_from_QBO_layer_iosafer(layer_index=0, fpathname_src='', fpath_dest=''
             fname_dest = 'U_{}_QBO_k{}.nc'.format(fin.variables['lev_p'][layer_index], layer_index)
         fpathname_dest = os.path.join(fpath_dest, fname_dest)
         #
-        os.system('rm {}'.format(fpathname_dest))
+        # we can just run this rm fname command. if the file does not exist, we see an error, but it does not break...
+        #   but it's sloppy. also, if this is a dir, for some reason, this command won't work. do we want it to?
+        if os.path.isfile(fpathname_dest):
+            os.system('rm {}'.format(fpathname_dest))
         if verbose:
             print('** DEBUG: open output file...')
             n_batches = int(numpy.ceil(n_time/batch_size))
         dim_names = ['time', 'lat', 'lon']
+        #
+        # TODO: re-handle these to allow for subsettng on one or more dimension (aka, make kt_0, tk_max work -- right now,
+        #  the'll probably break, or at lest just do nothing and be misleading.
+        # probably, repthink the dim_lens array, and add a var_start_index[] list.
         dim_lens  = [fin.dimensions[s] for s in dim_names]
         n_time, n_pev, n_lat, n_lon = numpy.shape(fin.variables['U'])
+        #
+        # TODO:
+        # allow for subsetting on time dimension:
+        #n_time = min(n_time, kt_max)
         #
     #
         with contextlib.closing(Nio.open_file(fpathname_dest, 'c')) as fout:
@@ -413,12 +440,13 @@ def copy_U_from_QBO_layer_iosafer(layer_index=0, fpathname_src='', fpath_dest=''
             # we should probably abstract the create_dimensions() part, but for now keep it simple:
             #for dn,dl in zip(dim_names, numpy.shape(fin.variables['U'])):
             #    fout.create_dimension(dn, dl)
+            #fout.create_dimension('time', n_time-kt_0)
             fout.create_dimension('time', n_time)
             fout.create_dimension('lat', n_lat)
             fout.create_dimension('lon', n_lon)
-            if verbose: print('** DEBUG: [{}:{}]:: dimensions created: {}'.format(os.getppid(), os.getpid(), time.time()-t0))
-			
-    #
+            if verbose:
+                print('** DEBUG: [{}:{}]:: dimensions created: {}'.format(os.getppid(), os.getpid(), time.time()-t0))
+            #
             #
             # set the dimension variable values as well:
             # NOTE: this step may not be necessary; these variables might be brought along by
@@ -550,6 +578,9 @@ def copy_U_from_QBO_layer_iosafer(layer_index=0, fpathname_src='', fpath_dest=''
             raise Exception('ERROR/EXCEPTION: N>{} IO failures copying variables[{}] (exception trapped outside loop, by try_task_completed failure)'.format(n_tries, 'U'))
         #
     #
+    if verbose:
+        print('*** layer [{}] complete; elapsed time: {}'.format(layer_index, time.time()-t0))
+    #
     return fpathname_dest
 
 
@@ -574,8 +605,9 @@ if __name__ == '__main__':
     # Options:
     # this one we just want to keep...
     parser.add_argument('--src_pathname', dest='src_pathname')
-    parser.add_argument('--kt_0', dest='kt_0')
-    parser.add_argument('--kt_max', dest='kt_max')
+    # TODO: we sort of wrote out this functionality, so until we put it back, let's just get rid of it -- here at least.
+    #parser.add_argument('--kt_0', dest='kt_0')
+    #parser.add_argument('--kt_max', dest='kt_max')
     parser.add_argument('--dest_path', dest='fpath_dest')
     parser.add_argument('--dest_fname', dest='fname_dest')
     parser.add_argument('--batch_size', dest='batch_size')
@@ -588,7 +620,7 @@ if __name__ == '__main__':
     print('indices: ', args.layer_indices)
     print('*** ***')
     print('src_pathname: ', args.src_pathname)
-    print('kt_0, kt_max: {} : {}'.format(args.kt_0, args.kt_max))
+    #print('kt_0, kt_max: {} : {}'.format(args.kt_0, args.kt_max))
     print('dest_path: ', args.fpath_dest)
     print('dest_fname: ', args.fname_dest)
     print('batch_size: ', args.batch_size)
@@ -607,4 +639,4 @@ if __name__ == '__main__':
     #		kt_0=0, kt_max=None, verbose=0, n_cpu=None):
     # Note: we have added quasi-recuersive parallelization to copy_U_from_QBO_layer(), so all we do here is pass variables...
     #x = copy_U_from_QBO_layer(layer_index=layer_indices, fpathname_src=args.src_pathname, fpath_dest=args.fpath_dest, fname_dest=args.fname_dest, batch_size=args.batch_size,
-x = args.f_QBO_copy(layer_index=layer_indices, fpathname_src=args.src_pathname, fpath_dest=args.fpath_dest, fname_dest=args.fname_dest, batch_size=args.batch_size, kt_0=args.kt_0, kt_max=args.kt_max, verbose=args.verbose, n_cpu=int(args.n_cpu), n_tries=args.n_tries)
+    x = args.f_QBO_copy(layer_index=layer_indices, fpathname_src=args.src_pathname, fpath_dest=args.fpath_dest, fname_dest=args.fname_dest, batch_size=args.batch_size, kt_0=0, kt_max=None, verbose=args.verbose, n_cpu=int(args.n_cpu), n_tries=args.n_tries)

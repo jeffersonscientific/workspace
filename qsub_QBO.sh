@@ -20,12 +20,17 @@
 #
 #  File names for stdout and stderr.  If not set here, the defaults
 # are <JOBNAME>.o<JOBNUM> and <JOBNAME>.e<JOBNUM>
-#PBS -o /scratch/yoder/job5-7.out
-#PBS -e /scratch/yoder/job5-7.err
+#PBS -o /scratch/yoder/job9-11.out
+#PBS -e /scratch/yoder/job9-11.err
 #
-touch /scratch/yoder/job5-7.out
-touch /scratch/yoder/job5-7.err
-#
+#if [ -f /scratch/yoder/job9-11.out ]; then
+#    rm /scratch/yoder/job9-11.out
+#    echo "removing old .out file"
+#fi
+#if [ -f /scratch/yoder/job9-11.err ]; then
+#    rm /scratch/yoder/job9-11.err
+#    echo "removing old .err file"
+#fi
 #
 echo "PBS variables set."
 #
@@ -39,10 +44,13 @@ conda activate ncl_stable
 echo "conda ncl_stable should be activated..."
 #
 # quick python test:
+# (this is a diagnostic step. can we execute a python command? Can we import
+#  the Nio library?
 python -c "print('Test command line execution from Python...')"
+python -c "import Nio"
 #
 # and execute this job:
-python ~/Codes/workspace/QBO_U_parser.py 5 6 7 --src_pathname=/scratch/yoder/U_V_T_Z3_plWACCMSC_CTL_122.cam.h2.0001-0202.nc --dest_path=/scratch/yoder --batch_size=2500 --verbose=1 --n_cpu=1 --n_tries=10 --io_safer
+python ~/Codes/workspace/QBO_U_parser.py 9 10 11 --src_pathname=/scratch/yoder/U_V_T_Z3_plWACCMSC_CTL_122.cam.h2.0001-0202.nc --dest_path=/scratch/yoder --batch_size=2500 --verbose=1 --n_cpu=1 --n_tries=10 --io_safer
 
 #
 echo "job complete."
